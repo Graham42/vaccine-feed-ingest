@@ -1,19 +1,22 @@
 #!/usr/bin/env python
 
+import asyncio
 import json
 import pathlib
 import re
 import sys
 from typing import List
 
+from aiofile import async_open
 from bs4 import BeautifulSoup
 from fetch import location_file_name_for_url
 
 
-def parse_location(input_file: pathlib.Path) -> dict:
+async def parse_location(input_file: pathlib.Path) -> dict:
     result: dict = {"phone-numbers": [], "contact-links": []}
-    with input_file.open() as f:
-        doc = BeautifulSoup(f, "html.parser")
+    async with async_open(input_file, "r") as f:
+        contents = await f.read()
+        doc = BeautifulSoup(contents, "html.parser")
     if doc is None:
         raise Exception("failed to set up beautiful soup")
 
@@ -51,11 +54,12 @@ def parse_location(input_file: pathlib.Path) -> dict:
     return result
 
 
-def parse_landing(input_dir: pathlib.Path) -> List:
+async def parse_landing(input_dir: pathlib.Path) -> List:
     locations_path = input_dir / "locations.html"
 
-    with locations_path.open() as f:
-        doc = BeautifulSoup(f, "html.parser")
+    async with async_open(locations_path, "r") as f:
+        contents = await f.read()
+        doc = BeautifulSoup(contents, "html.parser")
     if doc is None:
         raise Exception("failed to set up beautiful soup")
 
@@ -75,6 +79,10 @@ def parse_landing(input_dir: pathlib.Path) -> List:
         )
 
     location_rows = doc.select("#datatable > tbody > tr")
+    # def parse_row(row):
+    #     return
+    # locations = []
+
     locations = []
     for row in location_rows:
         cells = row.find_all("td")
@@ -97,25 +105,26 @@ def parse_landing(input_dir: pathlib.Path) -> List:
         a = row.find("a")
         if a is not None and a.attrs["href"] is not None:
             file_name = location_file_name_for_url(a.attrs["href"])
-            extras = parse_location(input_dir / file_name)
+            extras = await parse_location(input_dir / file_name)
             location.update(extras)
         locations.append(location)
     return locations
 
 
-def main():
+async def main():
     output_dir = pathlib.Path(sys.argv[1])
     input_dir = pathlib.Path(sys.argv[2])
 
-    locations = parse_landing(input_dir)
+    locations = await parse_landing(input_dir)
 
     out_filepath = output_dir / "locations.parsed.ndjson"
 
-    with out_filepath.open("w") as fout:
+    async with async_open(out_filepath, "w") as f:
         for obj in locations:
-            json.dump(obj, fout)
-            fout.write("\n")
+            await f.write(json.dumps(obj))
+            await f.write("\n")
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())

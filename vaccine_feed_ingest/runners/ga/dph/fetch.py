@@ -7,6 +7,7 @@ import sys
 from typing import List
 from urllib.parse import urljoin
 
+from aiofile import async_open
 from aiohttp import ClientSession
 from bs4 import BeautifulSoup
 
@@ -51,9 +52,9 @@ async def fetch_location(
 
     async with session.get(url) as response:
         contents = await response.text()
-        with output_file.open("w") as f:
-            f.write(contents)
-            f.write("\n")
+        async with async_open(output_file, "w") as f:
+            await f.write(contents)
+            await f.write("\n")
 
 
 async def main():
@@ -64,9 +65,9 @@ async def main():
         contents = ""
         async with session.get(start_url) as response:
             contents = await response.text()
-            with output_file.open("w") as f:
-                f.write(contents)
-                f.write("\n")
+            async with async_open(output_file, "w") as f:
+                await f.write(contents)
+                await f.write("\n")
 
         doc = BeautifulSoup(contents, "html.parser")
         location_links = parse_location_links(doc)
