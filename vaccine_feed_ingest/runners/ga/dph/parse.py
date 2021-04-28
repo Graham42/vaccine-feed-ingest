@@ -79,12 +79,7 @@ async def parse_landing(input_dir: pathlib.Path) -> List:
         )
 
     location_rows = doc.select("#datatable > tbody > tr")
-    # def parse_row(row):
-    #     return
-    # locations = []
-
-    locations = []
-    for row in location_rows:
+    async def parse_row(row):
         cells = row.find_all("td")
         location = {
             # these first 3 items are for backwards compatibility with the
@@ -107,7 +102,35 @@ async def parse_landing(input_dir: pathlib.Path) -> List:
             file_name = location_file_name_for_url(a.attrs["href"])
             extras = await parse_location(input_dir / file_name)
             location.update(extras)
-        locations.append(location)
+        return location
+    futures = [parse_row(row) for row in location_rows]
+    locations = await asyncio.gather(*futures)
+
+    # locations = []
+    # for row in location_rows:
+    #     cells = row.find_all("td")
+    #     location = {
+    #         # these first 3 items are for backwards compatibility with the
+    #         # previous parser iteration
+    #         "Location Name": cells[0].text.strip(),
+    #         "County": cells[1].text.strip(),
+    #         "Address": cells[2].text.strip(),
+    #         "address-parts": {},
+    #     }
+    #     # inside the address column the data is organized with classes
+    #     # containing semantic parts: address-line1, locality, postal-code, etc
+    #     for span in cells[2].find_all("span"):
+    #         # these spans should only ever have 1 class, but just in case,
+    #         # convert the list to a string
+    #         key = " ".join(span.attrs["class"])
+    #         location["address-parts"][key] = span.text.strip()
+
+    #     a = row.find("a")
+    #     if a is not None and a.attrs["href"] is not None:
+    #         file_name = location_file_name_for_url(a.attrs["href"])
+    #         extras = await parse_location(input_dir / file_name)
+    #         location.update(extras)
+    #     locations.append(location)
     return locations
 
 
