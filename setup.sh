@@ -48,6 +48,7 @@ setup_linux() {
         echo ""
         echo "We don't yet have automated setup for RPM-based distributions"
         echo "and would be absolutely delighted to take a patch."
+        exit 1
     fi
 
     echo "Installing dependencies"
@@ -78,6 +79,6 @@ fi
 
 case "$OSTYPE" in
 darwin*) setup_macos ;;
-#linux*)   setup_linux ;;
+linux*) setup_linux ;;
 *) setup_unsupported ;;
 esac
