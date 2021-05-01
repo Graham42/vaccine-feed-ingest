@@ -10,6 +10,9 @@ import sys
 from datetime import datetime
 from typing import List, Optional, Tuple
 
+from pydantic import ValidationError
+import requests
+
 from vaccine_feed_ingest_schema import location as schema
 
 from vaccine_feed_ingest.utils.validation import BOUNDING_BOX
@@ -43,7 +46,7 @@ def _get_id(site: dict) -> str:
     arcgis = "128ead309d754558ad81bccd99188dc9"
     layer = 0
 
-    return f"{runner}_{site_name}:{arcgis}_{layer}:{data_id}"
+    return f"{runner}_{site_name}:{arcgis}_{layer}_{data_id}"
 
 
 def _get_contacts(site: dict) -> Optional[List[schema.Contact]]:
@@ -64,10 +67,27 @@ def _get_contacts(site: dict) -> Optional[List[schema.Contact]]:
 
         for match in matches:
             phone = f"({match.group('area_code')}) {match.group('rest_of_number')}"
-            contacts.append(schema.Contact(phone=phone))
+            try:
+                contacts.append(schema.Contact(phone=phone))
+            except Exception as err:
+                print(phone)
+                schema.Contact(phone="1 " + phone)
+                raise err
 
     if site["attributes"]["prereg_website"]:
-        contacts.append(schema.Contact(website=site["attributes"]["prereg_website"]))
+        website = site["attributes"]["prereg_website"].strip()
+        # The type checker can't seem to understand re.match so we're ignoring
+        # it for this line
+        match = re.match(r"^http", website)  # type: ignore
+        # check if the url scheme is missing
+        if match is None:
+            # try https://, otherwise add http://
+            website = "https://" + site["attributes"]["prereg_website"].strip()
+            try:
+                requests.get(website, timeout=30)
+            except (requests.exceptions.Timeout, requests.exceptions.SSLError):
+                website = "http://" + site["attributes"]["prereg_website"].strip()
+        contacts.append(schema.Contact(website=website))
 
     if len(contacts) > 0:
         return contacts
